@@ -48,7 +48,7 @@ BOOL Open_Log_File(void){
 
 int main(int argc, char *argv[]) {
 
-#ifdef _MSC_VER 
+#ifdef _WIN32
 	// Disable output buffering: printf() does not work correctly otherwise
 	//setvbuf(stdout, NULL, _IONBF, 0);
 
@@ -78,8 +78,7 @@ int main(int argc, char *argv[]) {
 	CreateDirectory(log_path,NULL);
 	Open_Log_File();
 #endif
-#else /* _MSC_VER */
-#endif /* _MSC_VER */
+#endif /* _WIN32 */
 
 	// 将当前线程的优先级降一下
 	//HANDLE hProcess = GetCurrentProcess();

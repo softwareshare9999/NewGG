@@ -423,7 +423,7 @@ bool ccmd(Position& pos, istringstream& uip){
 	return true;
 }
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 
 #include <io.h>
 #include <fcntl.h>

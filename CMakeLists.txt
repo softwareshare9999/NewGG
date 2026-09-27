@@ -177,7 +177,23 @@ if(ANDROID AND NEWGG_ANDROID_STATIC)
   target_link_options(NewGG PRIVATE -static -Wno-unused-command-line-argument)
 endif()
 
+# MinGW/Clang on Windows otherwise needs libgcc_s_seh-1.dll, libstdc++-6.dll,
+# and libwinpthread-1.dll next to the exe or on PATH.
+if(WIN32 AND NOT MSVC)
+  target_link_options(NewGG PRIVATE -static)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(NewGG PRIVATE -static-libgcc -static-libstdc++)
+  endif()
+endif()
+
 find_package(Threads REQUIRED)
 target_link_libraries(NewGG PRIVATE Threads::Threads)
+
+add_custom_command(TARGET NewGG POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${NEWGG_SRC_DIR}/ggX64set2017.ini"
+    "$<TARGET_FILE_DIR:NewGG>/ggX64set2017.ini"
+  COMMENT "Copy ggX64set2017.ini next to NewGG"
+)
 
 install(TARGETS NewGG RUNTIME DESTINATION bin)

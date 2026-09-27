@@ -48,7 +48,9 @@ cmake -S . -B build-mingw -G Ninja \
 cmake --build build-mingw --parallel
 ```
 
-The binary is `build-mingw/NewGG.exe`. Change `NEWGG_ARCH` to `x86-64`, `bmi2`, `avx512`, `avxvnni`, or `vnni512` as needed.
+The binary is `build-mingw/NewGG.exe` (statically linked, so it does not need MinGW DLLs). Change `NEWGG_ARCH` to `x86-64`, `bmi2`, `avx512`, `avxvnni`, or `vnni512` as needed.
+
+NewGG is a UCI engine: load it in a Xiangqi GUI. Double-clicking only opens a console that waits for UCI commands. It uses traditional evaluation plus `ggX64set2017.ini` next to the exe. It does **not** load `.nnue` files (those belong to the separate GGnn engines).
 
 ### macOS
 
@@ -98,6 +100,6 @@ Push to `master`/`main` or run the **NewGG** workflow manually. It builds:
 - `NewGG-Windows-AVXVNNI.exe`
 - `NewGG-Windows-VNNI512.exe`
 
-Download the combined **NewGG** artifact from the workflow run.
+Download the combined **NewGG** artifact from the workflow run. Windows ARCH jobs use the same MinGW GCC + Ninja path as a local `build-mingw` build (ASCII object wrappers and a statically linked exe, so no `libgcc`/`libstdc++` DLLs). Each Windows artifact also includes `ggX64set2017.ini`.
 
 点击链接加入群聊【中国象棋 GGzero】：https://jq.qq.com/?_wv=1027&k=oiEp8yOm

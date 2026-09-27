@@ -8,10 +8,15 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: newgg-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: ${{ matrix.config.name }}
     runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -46,11 +51,12 @@ jobs:
             ${{ matrix.config.extra_cmake }}
 
       - name: Build
-        run: cmake --build build --config Release --parallel
+        run: cmake --build build --config Release --parallel 4
 
       - name: Locate binary
         shell: bash
         run: |
+          mkdir -p dist
           if [ -f build/NewGG ]; then
             BIN=build/NewGG
           elif [ -f build/Release/NewGG.exe ]; then
@@ -66,16 +72,23 @@ jobs:
           if command -v strip >/dev/null 2>&1 && [[ "$BIN" != *.exe ]]; then
             strip "$BIN" || true
           fi
-          cp "$BIN" "${{ matrix.config.artifact }}"
+          cp "$BIN" "dist/${{ matrix.config.artifact }}"
+          for ini in build/ggX64set2017.ini build/Release/ggX64set2017.ini; do
+            if [ -f "$ini" ]; then
+              cp "$ini" dist/ggX64set2017.ini
+              break
+            fi
+          done
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.config.artifact }}
-          path: ${{ matrix.config.artifact }}
+          path: dist/*
 
   build-windows-arch:
     name: Windows-${{ matrix.arch }}
     runs-on: windows-latest
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -89,41 +102,44 @@ jobs:
 
       - uses: msys2/setup-msys2@v2
         with:
-          msystem: clang64
+          msystem: mingw64
           update: false
-          install: mingw-w64-clang-x86_64-clang mingw-w64-clang-x86_64-cmake mingw-w64-clang-x86_64-ninja
+          install: mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja
 
       - name: Configure
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
             -DNEWGG_ARCH=${{ matrix.arch }}
 
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build build --parallel 4
 
       - name: Locate binary
         run: |
-          if [ -f build/NewGG.exe ]; then
-            BIN=build/NewGG.exe
-          else
+          if [ ! -f build/NewGG.exe ]; then
             echo "Built NewGG binary not found"
             find build -name 'NewGG*' -type f
             exit 1
           fi
-          llvm-strip "$BIN" || strip "$BIN" || true
-          cp "$BIN" "NewGG-Windows-${{ matrix.arch }}.exe"
+          mkdir -p dist
+          strip build/NewGG.exe || true
+          cp build/NewGG.exe "dist/NewGG-Windows-${{ matrix.arch }}.exe"
+          if [ -f build/ggX64set2017.ini ]; then
+            cp build/ggX64set2017.ini dist/ggX64set2017.ini
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: NewGG-Windows-${{ matrix.arch }}.exe
-          path: NewGG-Windows-${{ matrix.arch }}.exe
+          name: NewGG-Windows-${{ matrix.arch }}
+          path: dist/*
 
   build-android:
     name: Android-arm64
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     env:
       NDKV: "28.2.13676358"
 
@@ -149,7 +165,7 @@ jobs:
             -DNEWGG_ANDROID_STATIC=ON
 
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build build --parallel 4
 
       - name: Locate binary
         run: |
@@ -184,6 +200,7 @@ jobs:
         run: |
           mkdir -p dist
           find Artifacts -type f -name 'NewGG-*' -exec cp {} dist/ \;
+          find Artifacts -type f -name 'ggX64set2017.ini' -exec cp {} dist/ \;
           ls -l dist
 
       - uses: actions/upload-artifact@v4
@@ -191,5 +208,6 @@ jobs:
           name: NewGG
           path: |
             dist/NewGG-*
+            dist/ggX64set2017.ini
             README.md
             CMakeLists.txt
