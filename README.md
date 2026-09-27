@@ -21,26 +21,33 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
 cmake --build build --parallel
 ```
 
-### Windows
-
-Open this folder in Visual Studio and configure the CMake project, or from a Developer Command Prompt:
+### Windows (Visual Studio / MSVC)
 
 ```bat
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
 ```
 
-Specialized CPU binaries (same names as Pikafish):
+### Windows (MinGW-w64)
 
-```bat
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNEWGG_ARCH=avx2
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNEWGG_ARCH=bmi2
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNEWGG_ARCH=avx512
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNEWGG_ARCH=avxvnni
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNEWGG_ARCH=vnni512
+From an MSYS2 **MINGW64** shell (`C:\msys64\mingw64.exe`), install the toolchain if needed:
+
+```bash
+pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja
 ```
 
-Clang/MinGW is recommended for `avxvnni` and `vnni512` so the matching `-m` flags are available.
+Then:
+
+```bash
+cmake -S . -B build-mingw -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER=gcc \
+  -DCMAKE_CXX_COMPILER=g++ \
+  -DNEWGG_ARCH=avx2
+cmake --build build-mingw --parallel
+```
+
+The binary is `build-mingw/NewGG.exe`. Change `NEWGG_ARCH` to `x86-64`, `bmi2`, `avx512`, `avxvnni`, or `vnni512` as needed.
 
 ### macOS
 

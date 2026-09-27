@@ -1,7 +1,7 @@
 #ifndef __BITOP_H__
 #define __BITOP_H__
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__MINGW32__)
 #else
     static __inline unsigned char _BitScanForward64(unsigned long* Index, unsigned long long Mask)
     {
