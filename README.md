@@ -36,9 +36,10 @@ From an MSYS2 **MINGW64** shell (`C:\msys64\mingw64.exe`), install the toolchain
 pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja
 ```
 
-Then:
+Delete any previous `build-mingw` folder first so CMake regenerates ASCII object wrappers (required for Chinese source filenames):
 
 ```bash
+rm -rf build-mingw
 cmake -S . -B build-mingw -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_COMPILER=gcc \

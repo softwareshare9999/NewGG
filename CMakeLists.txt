@@ -52,6 +52,26 @@ if(NEWGG_MISSING)
 endif()
 message(STATUS "NewGG: ${NEWGG_SOURCE_COUNT} source files from rules.mk")
 
+# MinGW/Ninja cannot write .obj files under Chinese source paths on Windows
+# (GNU as: "can't create .../1对1/1马对1马.cpp.obj"). Compile ASCII wrappers
+# that include the real sources instead.
+if(WIN32 AND NOT MSVC)
+  set(NEWGG_WRAP_DIR "${CMAKE_BINARY_DIR}/src_wrap")
+  file(MAKE_DIRECTORY "${NEWGG_WRAP_DIR}")
+  set(NEWGG_WRAP_SOURCES)
+  set(NEWGG_WRAP_INDEX 0)
+  foreach(SRC IN LISTS NEWGG_SOURCES)
+    math(EXPR NEWGG_WRAP_INDEX "${NEWGG_WRAP_INDEX}+1")
+    get_filename_component(SRC_EXT "${SRC}" EXT)
+    set(WRAP_FILE "${NEWGG_WRAP_DIR}/s${NEWGG_WRAP_INDEX}${SRC_EXT}")
+    file(TO_CMAKE_PATH "${SRC}" SRC_INCLUDE)
+    file(WRITE "${WRAP_FILE}" "#include \"${SRC_INCLUDE}\"\n")
+    list(APPEND NEWGG_WRAP_SOURCES "${WRAP_FILE}")
+  endforeach()
+  set(NEWGG_SOURCES "${NEWGG_WRAP_SOURCES}")
+  message(STATUS "NewGG: using ${NEWGG_WRAP_INDEX} ASCII object wrappers for MinGW")
+endif()
+
 add_executable(NewGG ${NEWGG_SOURCES})
 set_target_properties(NewGG PROPERTIES OUTPUT_NAME NewGG)
 
