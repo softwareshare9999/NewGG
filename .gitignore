@@ -4,6 +4,7 @@
 .DS_Store
 .clangd/
 build/
+build-mingw/
 out/
 cmake-build-*/
 .cache/
