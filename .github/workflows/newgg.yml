@@ -1,0 +1,102 @@
+name: NewGG
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: Linux-x86-64
+            os: ubuntu-24.04
+            artifact: NewGG-Linux-x86-64
+            extra_cmake: -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DNEWGG_USE_LIBCXX=ON
+          - name: Windows-x86-64
+            os: windows-latest
+            artifact: NewGG-Windows-x86-64.exe
+            extra_cmake: ""
+          - name: macOS-x86-64
+            os: macos-latest
+            artifact: NewGG-macOS-x86-64
+            extra_cmake: -DCMAKE_OSX_ARCHITECTURES=x86_64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libc++-dev libc++abi-dev ninja-build
+
+      - name: Configure
+        shell: bash
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            ${{ matrix.config.extra_cmake }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Locate binary
+        id: binary
+        shell: bash
+        run: |
+          if [ -f build/NewGG ]; then
+            BIN=build/NewGG
+          elif [ -f build/Release/NewGG.exe ]; then
+            BIN=build/Release/NewGG.exe
+          elif [ -f build/NewGG.exe ]; then
+            BIN=build/NewGG.exe
+          else
+            echo "Built NewGG binary not found"
+            find build -name 'NewGG*' -type f
+            exit 1
+          fi
+          chmod +x "$BIN" || true
+          if command -v strip >/dev/null 2>&1 && [[ "$BIN" != *.exe ]]; then
+            strip "$BIN" || true
+          fi
+          cp "$BIN" "${{ matrix.config.artifact }}"
+          echo "path=${{ matrix.config.artifact }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.config.artifact }}
+          path: ${{ matrix.config.artifact }}
+
+  package:
+    name: NewGG
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: NewGG-*
+          path: Artifacts
+
+      - name: Collect binaries
+        run: |
+          mkdir -p dist
+          find Artifacts -type f -name 'NewGG-*' -exec cp {} dist/ \;
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NewGG
+          path: |
+            dist/NewGG-*
+            README.md
+            CMakeLists.txt

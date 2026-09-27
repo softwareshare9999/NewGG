@@ -4,6 +4,9 @@
 .DS_Store
 .clangd/
 build/
+out/
+cmake-build-*/
+.cache/
 compile_commands.json
 CUDA_NN/
 lc0.xcodeproj/
