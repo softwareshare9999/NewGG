@@ -12,6 +12,11 @@ if(MSVC)
 endif()
 
 option(NEWGG_USE_LIBCXX "Link Clang builds against libc++" OFF)
+option(NEWGG_ANDROID_STATIC "Statically link the Android binary" ON)
+
+set(NEWGG_ARCH "" CACHE STRING "CPU architecture: x86-64, avx2, bmi2, avx512, avxvnni, vnni512, arm64")
+set_property(CACHE NEWGG_ARCH PROPERTY STRINGS
+  x86-64 avx2 bmi2 avx512 avxvnni vnni512 arm64)
 
 set(NEWGG_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/I_GGX64")
 set(NEWGG_RULES_FILE "${NEWGG_SRC_DIR}/rules.mk")
@@ -66,13 +71,28 @@ target_compile_definitions(NewGG PRIVATE
   $<$<CONFIG:MinSizeRel>:NDEBUG>
 )
 
-set(NEWGG_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
+if(NOT NEWGG_ARCH)
+  if(ANDROID)
+    set(NEWGG_ARCH "arm64")
+  elseif(CMAKE_OSX_ARCHITECTURES MATCHES "arm64|aarch64")
+    set(NEWGG_ARCH "arm64")
+  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
+    set(NEWGG_ARCH "arm64")
+  else()
+    set(NEWGG_ARCH "x86-64")
+  endif()
+endif()
 string(TOLOWER "${NEWGG_ARCH}" NEWGG_ARCH)
-if(CMAKE_OSX_ARCHITECTURES)
-  string(TOLOWER "${CMAKE_OSX_ARCHITECTURES}" NEWGG_ARCH)
+string(REPLACE "x86-64-" "" NEWGG_ARCH "${NEWGG_ARCH}")
+string(REPLACE "_" "-" NEWGG_ARCH "${NEWGG_ARCH}")
+message(STATUS "NewGG architecture: ${NEWGG_ARCH}")
+
+set(NEWGG_IS_MSVC_CL FALSE)
+if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set(NEWGG_IS_MSVC_CL TRUE)
 endif()
 
-if(MSVC)
+if(NEWGG_IS_MSVC_CL)
   target_compile_options(NewGG PRIVATE
     /utf-8
     /MP
@@ -90,26 +110,51 @@ else()
     -Wno-switch
     -Wno-unknown-pragmas
   )
+endif()
 
-  if(NEWGG_ARCH MATCHES "arm64|aarch64")
-    if(APPLE)
-      target_compile_options(NewGG PRIVATE -arch arm64)
-    endif()
-  else()
+# Pikafish-compatible x86-64 instruction-set flags.
+if(NEWGG_ARCH STREQUAL "arm64")
+  if(APPLE)
+    target_compile_options(NewGG PRIVATE -arch arm64)
+  endif()
+elseif(NEWGG_IS_MSVC_CL)
+  if(NEWGG_ARCH STREQUAL "avx2" OR NEWGG_ARCH STREQUAL "bmi2")
+    target_compile_options(NewGG PRIVATE /arch:AVX2)
+  elseif(NEWGG_ARCH STREQUAL "avxvnni")
+    target_compile_options(NewGG PRIVATE /arch:AVX2)
+  elseif(NEWGG_ARCH STREQUAL "avx512" OR NEWGG_ARCH STREQUAL "vnni512")
+    target_compile_options(NewGG PRIVATE /arch:AVX512)
+  endif()
+else()
+  if(NOT NEWGG_ARCH STREQUAL "arm64")
     target_compile_options(NewGG PRIVATE
-      -msse
-      -msse2
-      -msse3
-      -msse4.1
-      -msse4.2
-      -mpopcnt
+      -msse -msse2 -msse3 -mssse3 -msse4.1 -msse4.2 -mpopcnt
     )
   endif()
-
-  if(NEWGG_USE_LIBCXX)
-    target_compile_options(NewGG PRIVATE -stdlib=libc++)
-    target_link_options(NewGG PRIVATE -stdlib=libc++)
+  if(NEWGG_ARCH STREQUAL "avx2")
+    target_compile_options(NewGG PRIVATE -mavx2 -mbmi)
+  elseif(NEWGG_ARCH STREQUAL "bmi2")
+    target_compile_options(NewGG PRIVATE -mavx2 -mbmi -mbmi2)
+  elseif(NEWGG_ARCH STREQUAL "avxvnni")
+    target_compile_options(NewGG PRIVATE -mavx2 -mbmi -mbmi2 -mavxvnni)
+  elseif(NEWGG_ARCH STREQUAL "avx512")
+    target_compile_options(NewGG PRIVATE
+      -mavx2 -mbmi -mbmi2 -mavx512f -mavx512bw -mavx512dq -mavx512vl
+    )
+  elseif(NEWGG_ARCH STREQUAL "vnni512")
+    target_compile_options(NewGG PRIVATE
+      -mavx2 -mbmi -mbmi2 -mavx512f -mavx512bw -mavx512dq -mavx512vl -mavx512vnni
+    )
   endif()
+endif()
+
+if(NEWGG_USE_LIBCXX AND NOT ANDROID)
+  target_compile_options(NewGG PRIVATE -stdlib=libc++)
+  target_link_options(NewGG PRIVATE -stdlib=libc++)
+endif()
+
+if(ANDROID AND NEWGG_ANDROID_STATIC)
+  target_link_options(NewGG PRIVATE -static -Wno-unused-command-line-argument)
 endif()
 
 find_package(Threads REQUIRED)

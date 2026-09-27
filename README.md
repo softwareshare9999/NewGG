@@ -30,6 +30,18 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
 ```
 
+Specialized CPU binaries (same names as Pikafish):
+
+```bat
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNEWGG_ARCH=avx2
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNEWGG_ARCH=bmi2
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNEWGG_ARCH=avx512
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNEWGG_ARCH=avxvnni
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNEWGG_ARCH=vnni512
+```
+
+Clang/MinGW is recommended for `avxvnni` and `vnni512` so the matching `-m` flags are available.
+
 ### macOS
 
 ```bash
@@ -52,13 +64,31 @@ Install clang and libc++, then:
 make
 ```
 
+### Android (NDK, arm64-v8a)
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+  -DANDROID_ABI=arm64-v8a \
+  -DANDROID_PLATFORM=android-28 \
+  -DANDROID_STL=c++_static \
+  -DNEWGG_ARCH=arm64
+cmake --build build --parallel
+```
+
 ## GitHub Actions
 
 Push to `master`/`main` or run the **NewGG** workflow manually. It builds:
 
 - `NewGG-Linux-x86-64`
-- `NewGG-Windows-x86-64.exe`
 - `NewGG-macOS-x86-64`
+- `NewGG-Android-arm64`
+- `NewGG-Windows-x86-64.exe`
+- `NewGG-Windows-AVX2.exe`
+- `NewGG-Windows-BMI2.exe`
+- `NewGG-Windows-AVX512.exe`
+- `NewGG-Windows-AVXVNNI.exe`
+- `NewGG-Windows-VNNI512.exe`
 
 Download the combined **NewGG** artifact from the workflow run.
 

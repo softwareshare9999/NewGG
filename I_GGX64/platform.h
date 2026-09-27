@@ -82,20 +82,44 @@ typedef uint64 Key;
 
 #define XMM_ALIGN __attribute__((aligned(16)))
 
-#if __arm64__ && __ARM_NEON__
+#if defined(__aarch64__) && !defined(__arm64__)
+#define __arm64__ 1
+#endif
+#if defined(__ARM_NEON) && !defined(__ARM_NEON__)
+#define __ARM_NEON__ 1
+#endif
+
+#if (__arm64__ && __ARM_NEON__) || defined(__aarch64__)
 #include <arm_neon.h>
 typedef uint64x2_t __m128i;
 
 #define Bitboard uint64x2_t
 
 // Translation of some xmm functions used
-#define _mm_andnot_si128(a, b) vandq_u64(~a, b)
+#define _mm_andnot_si128(a, b) vbicq_u64(b, a)
 #define _mm_and_si128(a, b) vandq_u64(a, b)
 #define _mm_or_si128(a, b) vorrq_u64(a, b)
+#define _mm_xor_si128(a, b) veorq_u64(a, b)
 #define _mm_setzero_si128() vcombine_u64(vcreate_u64(0), vcreate_u64(0))
-#define _mm_load_si128(vp) (*vp)
+#define _mm_load_si128(vp) vld1q_u64((const uint64_t*)(vp))
 #define _mm_setr_epi32(e3, e2, e1, e0) vsetq_lane_u32(e3, vsetq_lane_u32(e2, vsetq_lane_u32(e1, vsetq_lane_u32(e0, vcombine_u64(vcreate_u64(0), vcreate_u64(0)), 3), 2), 1), 0)
 #define _mm_set1_epi32(a) vdupq_n_u32(a)
+#define _mm_set_epi64x(hi, lo) vcombine_u64(vcreate_u64((uint64_t)(lo)), vcreate_u64((uint64_t)(hi)))
+#define _mm_extract_epi64(a, imm) ((__int64)vgetq_lane_u64(a, imm))
+#define _mm_insert_epi64(a, i, imm) vsetq_lane_u64((uint64_t)(i), a, imm)
+#define _mm_popcnt_u64(x) ((unsigned long long)__builtin_popcountll((unsigned long long)(x)))
+#define _mm_slli_si128(a, imm) vcombine_u64(vcreate_u64(0), vget_low_u64(a))
+#define _mm_srli_si128(a, imm) vcombine_u64(vget_high_u64(a), vcreate_u64(0))
+#define _mm_slli_epi64(a, n) vshlq_u64(a, vdupq_n_s64((int64_t)(n)))
+#define _mm_srli_epi64(a, n) vshlq_u64(a, vdupq_n_s64(-(int64_t)(n)))
+static inline int _mm_testz_si128(__m128i a, __m128i b) {
+  uint64x2_t t = vandq_u64(a, b);
+  return (vgetq_lane_u64(t, 0) | vgetq_lane_u64(t, 1)) == 0;
+}
+static inline int _mm_testc_si128(__m128i a, __m128i b) {
+  uint64x2_t t = vbicq_u64(b, a);
+  return (vgetq_lane_u64(t, 0) | vgetq_lane_u64(t, 1)) == 0;
+}
 #else
 #include <immintrin.h>
 #define Bitboard __m128i

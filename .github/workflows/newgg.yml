@@ -19,15 +19,15 @@ jobs:
           - name: Linux-x86-64
             os: ubuntu-24.04
             artifact: NewGG-Linux-x86-64
-            extra_cmake: -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DNEWGG_USE_LIBCXX=ON
+            extra_cmake: -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DNEWGG_USE_LIBCXX=ON -DNEWGG_ARCH=x86-64
           - name: Windows-x86-64
             os: windows-latest
             artifact: NewGG-Windows-x86-64.exe
-            extra_cmake: ""
+            extra_cmake: -DNEWGG_ARCH=x86-64
           - name: macOS-x86-64
             os: macos-latest
             artifact: NewGG-macOS-x86-64
-            extra_cmake: -DCMAKE_OSX_ARCHITECTURES=x86_64
+            extra_cmake: -DCMAKE_OSX_ARCHITECTURES=x86_64 -DNEWGG_ARCH=x86-64
 
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang libc++-dev libc++abi-dev ninja-build
+          sudo apt-get install -y clang libc++-dev libc++abi-dev
 
       - name: Configure
         shell: bash
@@ -49,7 +49,6 @@ jobs:
         run: cmake --build build --config Release --parallel
 
       - name: Locate binary
-        id: binary
         shell: bash
         run: |
           if [ -f build/NewGG ]; then
@@ -68,17 +67,111 @@ jobs:
             strip "$BIN" || true
           fi
           cp "$BIN" "${{ matrix.config.artifact }}"
-          echo "path=${{ matrix.config.artifact }}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.config.artifact }}
           path: ${{ matrix.config.artifact }}
 
+  build-windows-arch:
+    name: Windows-${{ matrix.arch }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [AVX2, BMI2, AVX512, AVXVNNI, VNNI512]
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: clang64
+          update: false
+          install: mingw-w64-clang-x86_64-clang mingw-w64-clang-x86_64-cmake mingw-w64-clang-x86_64-ninja
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DNEWGG_ARCH=${{ matrix.arch }}
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Locate binary
+        run: |
+          if [ -f build/NewGG.exe ]; then
+            BIN=build/NewGG.exe
+          else
+            echo "Built NewGG binary not found"
+            find build -name 'NewGG*' -type f
+            exit 1
+          fi
+          llvm-strip "$BIN" || strip "$BIN" || true
+          cp "$BIN" "NewGG-Windows-${{ matrix.arch }}.exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NewGG-Windows-${{ matrix.arch }}.exe
+          path: NewGG-Windows-${{ matrix.arch }}.exe
+
+  build-android:
+    name: Android-arm64
+    runs-on: ubuntu-latest
+    env:
+      NDKV: "28.2.13676358"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install NDK
+        run: |
+          ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
+          SDKMANAGER=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager
+          echo "y" | $SDKMANAGER "ndk;$NDKV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/$NDKV" >> $GITHUB_ENV
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-28 \
+            -DANDROID_STL=c++_static \
+            -DNEWGG_ARCH=arm64 \
+            -DNEWGG_ANDROID_STATIC=ON
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Locate binary
+        run: |
+          if [ -f build/NewGG ]; then
+            BIN=build/NewGG
+          else
+            echo "Built NewGG binary not found"
+            find build -name 'NewGG*' -type f
+            exit 1
+          fi
+          "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" "$BIN" || true
+          cp "$BIN" NewGG-Android-arm64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NewGG-Android-arm64
+          path: NewGG-Android-arm64
+
   package:
     name: NewGG
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, build-windows-arch, build-android]
     steps:
       - uses: actions/checkout@v4
 
